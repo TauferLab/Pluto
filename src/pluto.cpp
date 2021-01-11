@@ -50,7 +50,7 @@ void pluto_init() {
   std::ofstream fs;
   fs.open( output, std::ofstream::out | std::ofstream::trunc );
   if ( fs.is_open() ) {
-    fs << "op   counter" << std::endl;
+    fs << "op  addr" << std::endl;
   }
 
   return;
@@ -69,11 +69,20 @@ void pluto_finalize() {
   write_log();
 }
 
+void write_post(long addr){
+  std::ofstream fs;
+  fs.open( output, std::ofstream::out | std::ofstream::app );
+  if ( fs.is_open() ) {
+    fs << local_map[addr].first << " " << addr << std::endl;
+  }
+
+}
+
 void match_request(long addr){
   std::ofstream fs;
   fs.open( output, std::ofstream::out | std::ofstream::app );
   if ( fs.is_open() ) {
-    fs << rank << " " << local_map[addr].first << " " << local_map[addr].second << std::endl;
+    fs << local_map[addr].first << " " << addr << std::endl;
   }
   local_map.erase(addr);
 }
@@ -130,6 +139,7 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
   }
   local_map[req] = std::pair<short, long>(0, counter);
   counter++;
+  write_post(req);
   _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
@@ -150,6 +160,7 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
   }
   local_map[req] = std::pair<short, long>(1, counter);
   counter++; 
+  write_post(req);
   _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
