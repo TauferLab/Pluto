@@ -38,25 +38,45 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 
 #include "pluto.hpp"
 
-static std::map<long, std::pair<int,int> > local_map;
+static std::map<long, std::pair<short,long> > local_map;
+static long counter;
+static std::string output;
+static int rank;
 
-void timer_init() {
+void pluto_init() {
+  counter = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  output = "pluto_out" + std::to_string(rank) + ".txt";
+  std::ofstream fs;
+  fs.open( output, std::ofstream::out | std::ofstream::trunc );
+  if ( fs.is_open() ) {
+    fs << "op   counter" << std::endl;
+  }
+
   return;
 }
 
 void write_log() {
-  auto log_file = "elapsed_time.txt";
+  /*auto log_file = "elapsed_time.txt";
   std::ofstream fs;
   fs.open( log_file, std::ofstream::out | std::ofstream::trunc );
   if ( fs.is_open() ) {
     fs << elapsed_time << std::endl;
-  }
+  }*/
 }
 
-void timer_finalize() {
+void pluto_finalize() {
   write_log();
 }
 
+void match_request(long addr){
+  std::ofstream fs;
+  fs.open( output, std::ofstream::out | std::ofstream::app );
+  if ( fs.is_open() ) {
+    fs << rank << " " << local_map[addr].first << " " << local_map[addr].second << std::endl;
+  }
+  local_map.erase(addr);
+}
 
 /* ================== C Wrappers for MPI_Init ================== */
 _EXTERN_C_ int PMPI_Init(int *arg_0, char ***arg_1);
@@ -100,6 +120,16 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
     int _wrap_py_return_val = 0;
  
 {
+  std::map<long, std::pair<short, long> >::iterator it;
+  long req = (long) arg_6;
+  it = local_map.find(req);
+  if(it != local_map.end()){
+    if(it->first == 1){
+      std::cerr << "Reusing receive request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
+    }
+  }
+  local_map[req] = std::pair<short, long>(0, counter);
+  counter++;
   _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
@@ -110,6 +140,16 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
     int _wrap_py_return_val = 0;
  
 {
+  std::map<long, std::pair<short, long> >::iterator it;
+  long req = (long) arg_6;
+  it = local_map.find(req);
+  if(it != local_map.end()){
+    if(it->first == 1){
+      std::cerr << "Reusing receive request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
+    }
+  }
+  local_map[req] = std::pair<short, long>(1, counter);
+  counter++; 
   _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
@@ -121,6 +161,9 @@ _EXTERN_C_ int MPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2) {
     int _wrap_py_return_val = 0;
 {
   _wrap_py_return_val = PMPI_Test(arg_0, arg_1, arg_2);
+  if(*arg_1 != 0){
+    match_request((long) arg_0);
+  }
 }
     return _wrap_py_return_val;
 }
@@ -132,6 +175,12 @@ _EXTERN_C_ int MPI_Testall(int arg_0, MPI_Request *arg_1, int *arg_2, MPI_Status
  
 {
   _wrap_py_return_val = PMPI_Testall(arg_0, arg_1, arg_2, arg_3);
+  if(*arg_2 != 0){
+    for(int i = 0; i < arg_0; i++){
+      match_request((long) (arg_1+i));
+    }
+  }
+
 }
     return _wrap_py_return_val;
 }
@@ -143,10 +192,15 @@ _EXTERN_C_ int MPI_Testany(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_3
  
 {
   _wrap_py_return_val = PMPI_Testany(arg_0, arg_1, arg_2, arg_3, arg_4);
+  if(*arg_3 != 0){
+    if(*arg_1 != MPI_REQUEST_NULL){
+      match_request((long) (arg_1+(*arg_2))); 
+    }
+  }
 }
     return _wrap_py_return_val;
 }
-
+ 
 /* ================== C Wrappers for MPI_Testsome ================== */
 _EXTERN_C_ int PMPI_Testsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_3, MPI_Status *arg_4);
 _EXTERN_C_ int MPI_Testsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_3, MPI_Status *arg_4) { 
@@ -154,6 +208,11 @@ _EXTERN_C_ int MPI_Testsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
  
 {
   _wrap_py_return_val = PMPI_Testsome(arg_0, arg_1, arg_2, arg_3, arg_4);
+  if(*arg_2 != 0){
+    for(int i = 0; i < *arg_2; i++){
+      match_request((long) (arg_1+*(arg_3+i)));
+    }
+  } 
 }
     return _wrap_py_return_val;
 }
@@ -165,6 +224,7 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
  
 {
   _wrap_py_return_val = PMPI_Wait(arg_0, arg_1);
+  match_request((long)arg_0);
 }
     return _wrap_py_return_val;
 }
@@ -176,6 +236,10 @@ _EXTERN_C_ int MPI_Waitall(int arg_0, MPI_Request *arg_1, MPI_Status *arg_2) {
  
 {
   _wrap_py_return_val = PMPI_Waitall(arg_0, arg_1, arg_2);
+  for(int i = 0; i < arg_0; i++){
+      match_request((long) (arg_1+i));
+  }
+
 }
     return _wrap_py_return_val;
 }
@@ -187,6 +251,9 @@ _EXTERN_C_ int MPI_Waitany(int arg_0, MPI_Request *arg_1, int *arg_2, MPI_Status
  
 {
   _wrap_py_return_val = PMPI_Waitany(arg_0, arg_1, arg_2, arg_3);
+  if(*arg_1 != MPI_REQUEST_NULL){
+      match_request((long) (arg_1+(*arg_2))); 
+   }
 }
     return _wrap_py_return_val;
 }
@@ -198,6 +265,9 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
  
 {
   _wrap_py_return_val = PMPI_Waitsome(arg_0, arg_1, arg_2, arg_3, arg_4);
+  for(int i = 0; i < *arg_2; i++){
+    match_request((long) (arg_1+*(arg_3+i)));
+  }
 }
     return _wrap_py_return_val;
 }
