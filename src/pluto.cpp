@@ -50,7 +50,7 @@ void pluto_init() {
   std::ofstream fs;
   fs.open( output, std::ofstream::out | std::ofstream::trunc );
   if ( fs.is_open() ) {
-    fs << "op  addr" << std::endl;
+    fs << "op  addr completion" << std::endl;
   }
 
   return;
@@ -73,7 +73,7 @@ void write_post(long addr){
   std::ofstream fs;
   fs.open( output, std::ofstream::out | std::ofstream::app );
   if ( fs.is_open() ) {
-    fs << local_map[addr].first << " " << addr << std::endl;
+    fs << local_map[addr].first << " " << addr << " 0" << std::endl;
   }
 
 }
@@ -82,7 +82,7 @@ void match_request(long addr){
   std::ofstream fs;
   fs.open( output, std::ofstream::out | std::ofstream::app );
   if ( fs.is_open() ) {
-    fs << local_map[addr].first << " " << addr << std::endl;
+    fs << local_map[addr].first << " " << addr << " 1" <<  std::endl;
   }
   local_map.erase(addr);
 }
