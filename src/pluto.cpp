@@ -35,25 +35,28 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 
 #include <map>
 #include <utility>
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/basic_file_sink.h>
 
 #include "pluto.hpp"
 
 static std::map<long, std::pair<short,long> > local_map;
 static long counter;
-static std::string output;
 static int rank;
 
 void pluto_init() {
   counter = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  output = "pluto_out" + std::to_string(rank) + ".txt";
-  std::ofstream fs;
-  fs.open( output, std::ofstream::out | std::ofstream::trunc );
-  if ( fs.is_open() ) {
-    fs << "op  addr completion" << std::endl;
-  }
+  std::string output = "pluto_out" + std::to_string(rank) + ".txt";
 
-  return;
+  try{
+    auto logger = spdlog::basic_logger_mt("basic_logger",output);
+  }
+  catch (const spdlog::spdlog_ex &ex){
+        std::cout << "Log init failed: " << ex.what() << std::endl;
+    }
+  spdlog::set_pattern("%v");
+  spdlog::get("basic_logger")->info("op  addr completion");
 }
 
 void write_log() {
@@ -70,20 +73,11 @@ void pluto_finalize() {
 }
 
 void write_post(long addr){
-  std::ofstream fs;
-  fs.open( output, std::ofstream::out | std::ofstream::app );
-  if ( fs.is_open() ) {
-    fs << local_map[addr].first << " " << addr << " 0" << std::endl;
-  }
-
+  spdlog::get("basic_logger")->info("{} {} 0", local_map[addr].first, addr);
 }
 
 void match_request(long addr){
-  std::ofstream fs;
-  fs.open( output, std::ofstream::out | std::ofstream::app );
-  if ( fs.is_open() ) {
-    fs << local_map[addr].first << " " << addr << " 1" <<  std::endl;
-  }
+  spdlog::get("basic_logger")->info("{} {} 1", local_map[addr].first, addr);
   local_map.erase(addr);
 }
 
