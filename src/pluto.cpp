@@ -72,16 +72,19 @@ void pluto_finalize() {
   write_log();
 }
 
-void write_read(long addr){
-  spdlog::get("basic_logger")->info("{} {} 0", local_map[addr].first, addr);
+void write_send(long addr){
+  spdlog::get("basic_logger")->info("{} {} 0 {}", local_map[addr].first, addr, counter);
+  counter++;
 }
 
 void write_recv(long addr){
-  spdlog::get("basic_logger")->info("{} {} 1", local_map[addr].first, addr);
+  spdlog::get("basic_logger")->info("{} {} 1 {}", local_map[addr].first, addr, counter);
+  counter++;
 }
 
 void match_request(long addr){
-  spdlog::get("basic_logger")->info("{} {} 2", local_map[addr].first, addr);
+  spdlog::get("basic_logger")->info("{} {} 2 {}", local_map[addr].first, addr, counter);
+  counter++;
   local_map.erase(addr);
 }
 
@@ -136,7 +139,6 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
     }
   }
   local_map[req] = std::pair<short, long>(0, counter);
-  counter++;
   write_send(req);
   _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
@@ -157,7 +159,6 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
     }
   }
   local_map[req] = std::pair<short, long>(1, counter);
-  counter++; 
   write_recv(req);
   _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
