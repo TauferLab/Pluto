@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_library(pluto SHARED)
 
+find_package(spdlog REQUIRED)
+target_link_libraries(pluto PRIVATE spdlog::spdlog)
+
 target_sources(pluto PRIVATE src/pluto.cpp)
 target_include_directories(pluto PRIVATE include/pluto)
 
