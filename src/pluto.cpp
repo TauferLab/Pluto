@@ -32,13 +32,21 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 #include <cstdlib>
 #include <unistd.h>
 #include <string>
+#include <sstream>
 
 #include <map>
 #include <utility>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#include <chrono>
+#include <cstdlib>
 
 #include "pluto.hpp"
+
+using std::chrono::duration_cast;
+using std::chrono::milliseconds;
+using std::chrono::system_clock;
+using std::ostringstream;
 
 static std::map<long, std::pair<short,long> > local_map;
 static long counter;
@@ -73,17 +81,26 @@ void pluto_finalize() {
 }
 
 void write_send(long addr){
-  spdlog::get("basic_logger")->info("{} {} 0 {}", local_map[addr].first, addr, counter);
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("{} {} 0 {}", local_map[addr].first, id, counter);
   counter++;
 }
 
 void write_recv(long addr){
-  spdlog::get("basic_logger")->info("{} {} 1 {}", local_map[addr].first, addr, counter);
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("{} {} 1 {}", local_map[addr].first, id, counter);
   counter++;
 }
 
 void match_request(long addr){
-  spdlog::get("basic_logger")->info("{} {} 2 {}", local_map[addr].first, addr, counter);
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("{} {} 2 {}", local_map[addr].first, id, counter);
   counter++;
   local_map.erase(addr);
 }
@@ -138,6 +155,7 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
       std::cerr << "Reusing receive request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
     }
   }
+  
   local_map[req] = std::pair<short, long>(0, counter);
   write_send(req);
   _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
@@ -234,6 +252,12 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
  
 {
   _wrap_py_return_val = PMPI_Wait(arg_0, arg_1);
+  // TODO:: verify whether isend already exists or not
+  std::map<long, std::pair<short, long> >::iterator it;
+  it = local_map.find((long)arg_0);
+  if(it == local_map.end()){
+      // std::cerr << "Address is not yet mapped: " << (long)arg_0 << std::endl;
+  }
   match_request((long)arg_0);
 }
     return _wrap_py_return_val;
@@ -286,16 +310,32 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
 
 
 ///* ================== C Wrappers for MPI_Send ================== */
-//_EXTERN_C_ int PMPI_Send(const void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, int arg_4, MPI_Comm arg_5);
-//_EXTERN_C_ int MPI_Send(const void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, int arg_4, MPI_Comm arg_5) { 
-//    int _wrap_py_return_val = 0;
-// 
-//{ 
-//  _wrap_py_return_val = PMPI_Send(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5);
-//}
-//    return _wrap_py_return_val;
-//}
-//
+// _EXTERN_C_ int PMPI_Send(const void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, int arg_4, MPI_Comm arg_5);
+// _EXTERN_C_ int MPI_Send(const void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, int arg_4, MPI_Comm arg_5) { 
+//     int _wrap_py_return_val = 0;
+ 
+// JACK_
+//     // auto ran = rand();
+//     // auto millisec_since_epoch = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+//     // char *ptr=(char *)arg_0;
+//     // auto asd= ptr[1];
+//     // std::cout << "TAG: " << arg_4 << " timestamp: " << millisec_since_epoch << " rand: " << ran << " data pointer: " << arg_0 << std::endl ; // TEST THIS
+//     // // std::cout << "_" << arg_4 << "_" << millisec_since_epoch << "_" << ran << "_" << arg_0 << "_" << ptr <<  std::endl ; // TEST THIS
+    
+    
+//     // ostringstream address_pointer;
+//     // address_pointer << arg_0;
+//     // std::string addre = address_pointer.str() + std::to_string(arg_4) + std::to_string(millisec_since_epoch)+std::to_string(ran);
+    
+//     // int h1 = std::hash<std::string>{}(addre);
+//     // std::cout << "hash " << h1 << std::endl;
+    
+//   { 
+//   _wrap_py_return_val = PMPI_Send(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5);
+//   }
+//     return _wrap_py_return_val;
+// }
+
 
 
 ///* ================== C Wrappers for MPI_Bsend ================== */
