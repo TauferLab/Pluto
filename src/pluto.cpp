@@ -49,6 +49,7 @@ using std::chrono::system_clock;
 using std::ostringstream;
 
 static std::map<long, std::pair<short,long> > local_map;
+static std::map<long, MPI_Request > wait_map;
 static long counter;
 static int rank;
 
@@ -105,6 +106,30 @@ void match_request(long addr){
   local_map.erase(addr);
 }
 
+void write_nonFlagTest(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 3 {}", id, counter);
+  counter++;  
+}
+
+void write_barrier(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 4 {}", id, counter);
+  counter++;  
+}
+
+void write_collective(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 5 {}", id, counter);
+  counter++;  
+}
+
 /* ================== C Wrappers for MPI_Init ================== */
 _EXTERN_C_ int PMPI_Init(int *arg_0, char ***arg_1);
 _EXTERN_C_ int MPI_Init(int *arg_0, char ***arg_1) { 
@@ -158,6 +183,16 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
   
   local_map[req] = std::pair<short, long>(0, counter);
   write_send(req);
+
+   // TODO: check if there is a Wait 
+    std::map<long, MPI_Request>::iterator itR;
+  itR = wait_map.find((long)arg_6);
+  if(itR != wait_map.end()){
+      std::cerr << "Pluto::MPI_ISEND:: There is a Wait event with the Address of this Send." << std::endl;
+      // match_request((long)arg_6);
+  }
+
+
   _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
@@ -178,7 +213,8 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
   }
   local_map[req] = std::pair<short, long>(1, counter);
   write_recv(req);
-  _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
+
+   _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
 }
@@ -191,6 +227,9 @@ _EXTERN_C_ int MPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2) {
   _wrap_py_return_val = PMPI_Test(arg_0, arg_1, arg_2);
   if(*arg_1 != 0){
     match_request((long) arg_0);
+  }
+  else{
+    write_nonFlagTest((long) arg_0);
   }
 }
     return _wrap_py_return_val;
@@ -252,13 +291,16 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
  
 {
   _wrap_py_return_val = PMPI_Wait(arg_0, arg_1);
+  long req = (long) arg_0;
   // TODO:: verify whether isend already exists or not
   std::map<long, std::pair<short, long> >::iterator it;
   it = local_map.find((long)arg_0);
   if(it == local_map.end()){
-      // std::cerr << "Address is not yet mapped: " << (long)arg_0 << std::endl;
+      wait_map[req] = *arg_0;
+      std::cerr << "Pluto::Address is not yet mapped: " << (long)arg_0 << std::endl;
   }
   match_request((long)arg_0);
+  
 }
     return _wrap_py_return_val;
 }
@@ -271,6 +313,7 @@ _EXTERN_C_ int MPI_Waitall(int arg_0, MPI_Request *arg_1, MPI_Status *arg_2) {
 {
   _wrap_py_return_val = PMPI_Waitall(arg_0, arg_1, arg_2);
   for(int i = 0; i < arg_0; i++){
+      std::cerr << "Pluto::MPI_Waitall::wrapping wait all. Rank: "<< rank << std::endl;
       match_request((long) (arg_1+i));
   }
 
@@ -306,7 +349,40 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
     return _wrap_py_return_val;
 }
 
+///* ================== C Wrappers for MPI_Allreduce ================== */
+_EXTERN_C_ int PMPI_Allreduce(const void *arg_0, void *arg_1, int arg_2, MPI_Datatype arg_3, MPI_Op arg_4, MPI_Comm arg_5);
+_EXTERN_C_ int MPI_Allreduce(const void *arg_0, void *arg_1, int arg_2, MPI_Datatype arg_3, MPI_Op arg_4, MPI_Comm arg_5) { 
+  int _wrap_py_return_val = 0;
 
+  {
+    _wrap_py_return_val = PMPI_Allreduce(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5);
+    std::cerr << "Pluto::MPI_AllReduce::wrapping all reduce" << std::endl;
+    write_collective(40000000000000);
+  }
+  return _wrap_py_return_val;
+}
+
+// /* ================== C Wrappers for MPI_Allreduce ================== */
+// _EXTERN_C_ int PMPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
+// _EXTERN_C_ int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) { 
+//     int _wrap_py_return_val = 0;
+
+// _wrap_py_return_val = PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
+//     return _wrap_py_return_val;
+// }
+
+///* ================== C Wrappers for MPI_Barrier ================== */
+_EXTERN_C_ int PMPI_Barrier(MPI_Comm arg_0);
+_EXTERN_C_ int MPI_Barrier(MPI_Comm arg_0) { 
+  int _wrap_py_return_val = 0;
+
+  {
+    _wrap_py_return_val = PMPI_Barrier(arg_0);
+    std::cerr << "Pluto::MPI_Barrier::wrapping Barrier" << std::endl;
+    write_barrier(30000000000000);
+  }
+  return _wrap_py_return_val;
+}
 
 
 ///* ================== C Wrappers for MPI_Send ================== */
@@ -329,7 +405,20 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
     
 //     // int h1 = std::hash<std::string>{}(addre);
 //     // std::cout << "hash " << h1 << std::endl;
-    
+  //   std::map<long, std::pair<short, long> >::iterator it;
+  // long req = (long) arg_5;
+  // it = local_map.find(req);
+  // if(it != local_map.end()){
+  //   if(it->first == 1){
+  //     std::cerr << "Reusing receive request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
+  //   }
+  // }
+  
+  // local_map[req] = std::pair<short, long>(0, counter);
+  // write_send(req);
+
+
+  
 //   { 
 //   _wrap_py_return_val = PMPI_Send(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5);
 //   }
@@ -505,17 +594,8 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
 //    return _wrap_py_return_val;
 //}
 //
-///* ================== C Wrappers for MPI_Allreduce ================== */
-//_EXTERN_C_ int PMPI_Allreduce(void *arg_0, void *arg_1, int arg_2, MPI_Datatype arg_3, MPI_Op arg_4, MPI_Comm arg_5);
-//_EXTERN_C_ int MPI_Allreduce(void *arg_0, void *arg_1, int arg_2, MPI_Datatype arg_3, MPI_Op arg_4, MPI_Comm arg_5) { 
-//    int _wrap_py_return_val = 0;
-// 
-//{
-//  _wrap_py_return_val = PMPI_Allreduce(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5);
-//}
-//    return _wrap_py_return_val;
-//}
-//
+
+
 ///* ================== C Wrappers for MPI_Alltoall ================== */
 //_EXTERN_C_ int PMPI_Alltoall(void *arg_0, int arg_1, MPI_Datatype arg_2, void *arg_3, int arg_4, MPI_Datatype arg_5, MPI_Comm arg_6);
 //_EXTERN_C_ int MPI_Alltoall(void *arg_0, int arg_1, MPI_Datatype arg_2, void *arg_3, int arg_4, MPI_Datatype arg_5, MPI_Comm arg_6) { 
@@ -571,17 +651,8 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
 //    return _wrap_py_return_val;
 //}
 //
-///* ================== C Wrappers for MPI_Barrier ================== */
-//_EXTERN_C_ int PMPI_Barrier(MPI_Comm arg_0);
-//_EXTERN_C_ int MPI_Barrier(MPI_Comm arg_0) { 
-//    int _wrap_py_return_val = 0;
-// 
-//{
-//  _wrap_py_return_val = PMPI_Barrier(arg_0);
-//}
-//    return _wrap_py_return_val;
-//}
-//
+
+
 ///* ================== C Wrappers for MPI_Bcast ================== */
 //_EXTERN_C_ int PMPI_Bcast(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, MPI_Comm arg_4);
 //_EXTERN_C_ int MPI_Bcast(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, MPI_Comm arg_4) { 
