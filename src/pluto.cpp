@@ -86,6 +86,7 @@ void write_send(long addr){
   // long id=counter;
   // long id=addr + counter;
   spdlog::get("basic_logger")->info("{} {} 0 {}", local_map[addr].first, id, counter);
+                                   //0, addr, 0, counter            
   counter++;
 }
 
@@ -129,6 +130,34 @@ void write_collective(long addr){
   spdlog::get("basic_logger")->info("2 {} 5 {}", id, counter);
   counter++;  
 }
+
+void write_bcast(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 6 {}", id, counter);
+  counter++;  
+}
+
+void write_gather(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 7 {}", id, counter);
+  counter++;  
+}
+
+void write_scatter(long addr){
+  long id= addr;
+  // long id=counter;
+  // long id=addr + counter;
+  spdlog::get("basic_logger")->info("2 {} 8 {}", id, counter);
+  counter++;  
+}
+
+
+
+/* ================== C Wrappers for MPI_Init ================== */
 
 /* ================== C Wrappers for MPI_Init ================== */
 _EXTERN_C_ int PMPI_Init(int *arg_0, char ***arg_1);
@@ -185,6 +214,7 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
   write_send(req);
 
    // TODO: check if there is a Wait 
+   // This should be in MPI_Wait
     std::map<long, MPI_Request>::iterator itR;
   itR = wait_map.find((long)arg_6);
   if(itR != wait_map.end()){
@@ -361,6 +391,57 @@ _EXTERN_C_ int MPI_Allreduce(const void *arg_0, void *arg_1, int arg_2, MPI_Data
   }
   return _wrap_py_return_val;
 }
+
+///* ================== C Wrappers for MPI_Bcast ================== */
+_EXTERN_C_ int PMPI_Bcast(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, MPI_Comm arg_4); 
+_EXTERN_C_ int MPI_Bcast(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, MPI_Comm arg_4) { 
+  int _wrap_py_return_val = 0;
+
+  {
+    _wrap_py_return_val = PMPI_Bcast(arg_0, arg_1, arg_2, arg_3, arg_4);
+    std::cerr << "Pluto::MPI_Bcast::wrapping bcast" << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (arg_3 == rank)
+        write_bcast(50000000000000);
+  }
+  return _wrap_py_return_val;
+}
+
+///* ================== C Wrappers for MPI_Gather ================== */
+_EXTERN_C_ int PMPI_Gather(const void *arg_0, int arg_1, MPI_Datatype arg_2, void *arg_3, int arg_4, MPI_Datatype arg_5, int arg_6, MPI_Comm arg_7); 
+_EXTERN_C_ int MPI_Gather(const void *arg_0, int arg_1, MPI_Datatype arg_2, void *arg_3, int arg_4, MPI_Datatype arg_5, int arg_6, MPI_Comm arg_7) { 
+  int _wrap_py_return_val = 0;
+
+  {
+    _wrap_py_return_val = PMPI_Gather(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arg_7);
+    std::cerr << "Pluto::MPI_Gather::wrapping gatehr" << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (arg_6 == rank)
+        write_gather(60000000000000);
+  }
+  return _wrap_py_return_val;
+}
+
+///* ================== C Wrappers for MPI_Scatter ================== */
+_EXTERN_C_ int PMPI_Scatter(const void *arg_0, int arg_1, MPI_Datatype arg_2,
+                                void *arg_3, int arg_4, MPI_Datatype arg_5,
+                                int arg_6, MPI_Comm arg_7);
+_EXTERN_C_ int MPI_Scatter(const void *arg_0, int arg_1, MPI_Datatype arg_2,
+                                void *arg_3, int arg_4, MPI_Datatype arg_5,
+                                int arg_6, MPI_Comm arg_7) {
+  int _wrap_py_return_val = 0;
+
+  {
+    _wrap_py_return_val = PMPI_Scatter(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6, arg_7);
+    std::cerr << "Pluto::MPI_Gather::wrapping gatehr" << std::endl;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (arg_6 == rank)
+        write_scatter(70000000000000);
+  }
+  return _wrap_py_return_val;
+}
+
+
 
 // /* ================== C Wrappers for MPI_Allreduce ================== */
 // _EXTERN_C_ int PMPI_Allreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
