@@ -33,6 +33,7 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 #include <unistd.h>
 #include <string>
 #include <sstream>
+#include <deque>
 
 #include <map>
 #include <utility>
@@ -50,6 +51,7 @@ using std::ostringstream;
 
 static std::map<long, std::pair<short,long> > local_map;
 static std::map<long, MPI_Request > wait_map;
+static std::deque<long> null_reqs_inds;
 static long counter;
 static int rank;
 
@@ -95,6 +97,14 @@ void write_recv(long addr){
   // long id=addr + counter;
   spdlog::get("basic_logger")->info("{} {} 1 {}", local_map[addr].first, id, counter);
   counter++;
+}
+
+void match_req_null(long addr){
+  long id = addr;
+  // Type 6 for null req matches
+  spdlog::get("basic_logger")->info("{} {} 6 {}", -1, id, counter);
+  counter++;
+  //local_map.erase(addr);    // Local map entry doesn't exist for null waits
 }
 
 void match_request(long addr){
@@ -299,7 +309,8 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
       wait_map[req] = *arg_0;
       std::cerr << "Pluto::Address is not yet mapped: " << (long)arg_0 << std::endl;
   }
-  match_request((long)arg_0);
+  else
+    match_request((long)arg_0);
   
 }
     return _wrap_py_return_val;
@@ -311,13 +322,31 @@ _EXTERN_C_ int MPI_Waitall(int arg_0, MPI_Request *arg_1, MPI_Status *arg_2) {
     int _wrap_py_return_val = 0;
  
 {
+  for(int i = 0; i<arg_0; i++){   // Checking if some requests already null; won't have matching irecvs, need to be registered as null waits
+    if(arg_1[i] == MPI_REQUEST_NULL)
+      null_reqs_inds.push_back(i);
+  }
   _wrap_py_return_val = PMPI_Waitall(arg_0, arg_1, arg_2);
   for(int i = 0; i < arg_0; i++){
+      if(null_reqs_inds.size() && i==null_reqs_inds.front()){
+        null_reqs_inds.pop_front();
+        match_req_null((long)(arg_1+i));
+        continue;
+      }
       std::cerr << "Pluto::MPI_Waitall::wrapping wait all. Rank: "<< rank << std::endl;
-      match_request((long) (arg_1+i));
+      //match_request((long) (arg_1+i));
+      std::map<long, std::pair<short, long> >::iterator it;
+      it = local_map.find((long)(arg_1+i));     //FIXED!!!! Changed (long)arg_0 to (long)(arg_1+i)
+      if(it == local_map.end()){
+        //wait_map[req] = *(arg_1+i);
+        std::cerr << "Pluto::Address is not yet mapped: " << (long)(arg_1+i) << std::endl;
+      }
+      else
+        match_request((long)(arg_1+i));
   }
 
 }
+    null_reqs_inds.clear();
     return _wrap_py_return_val;
 }
 
@@ -328,8 +357,11 @@ _EXTERN_C_ int MPI_Waitany(int arg_0, MPI_Request *arg_1, int *arg_2, MPI_Status
  
 {
   _wrap_py_return_val = PMPI_Waitany(arg_0, arg_1, arg_2, arg_3);
-  if(*arg_1 != MPI_REQUEST_NULL){
+  if(*arg_2 != MPI_UNDEFINED){    // index will be set to undefined if there were no active requests in the original req arr
       match_request((long) (arg_1+(*arg_2))); 
+   }
+   else{
+    // register null request FIXME!!!
    }
 }
     return _wrap_py_return_val;
@@ -341,11 +373,22 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
     int _wrap_py_return_val = 0;
  
 {
+  for(int i = 0; i<arg_0; i++){   // Checking if some requests already null; won't have matching irecvs, need to be registered as null waits
+    if(arg_1[i] == MPI_REQUEST_NULL)
+      null_reqs_inds.push_back(i);
+  }
+
   _wrap_py_return_val = PMPI_Waitsome(arg_0, arg_1, arg_2, arg_3, arg_4);
   for(int i = 0; i < *arg_2; i++){
-    match_request((long) (arg_1+*(arg_3+i)));
+    if (null_reqs_inds.size() && *(arg_3+i) != null_reqs_inds.front())
+      match_request((long) (arg_1+*(arg_3+i)));
+    else{
+      null_reqs_inds.pop_front();
+      match_req_null((long)(arg_1+*(arg_3+i)));
+    }
   }
 }
+    null_reqs_inds.clear();
     return _wrap_py_return_val;
 }
 
