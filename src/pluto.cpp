@@ -238,9 +238,9 @@ _EXTERN_C_ int MPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2) {
   if(*arg_1 != 0){
     match_request((long) arg_0);
   }
-  else{
-    write_nonFlagTest((long) arg_0);
-  }
+  //else{     // When flag is 0, trace does not register the vertex; no need to add to pluto
+    //write_nonFlagTest((long) arg_0);
+  //}
 }
     return _wrap_py_return_val;
 }
@@ -380,12 +380,13 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
 
   _wrap_py_return_val = PMPI_Waitsome(arg_0, arg_1, arg_2, arg_3, arg_4);
   for(int i = 0; i < *arg_2; i++){
-    if (null_reqs_inds.size() && *(arg_3+i) != null_reqs_inds.front())
-      match_request((long) (arg_1+*(arg_3+i)));
-    else{
+    if (null_reqs_inds.size() && arg_3[i] == null_reqs_inds.front())
+    {
       null_reqs_inds.pop_front();
       match_req_null((long)(arg_1+*(arg_3+i)));
     }
+    else
+      match_request((long) (arg_1+arg_3[i]));
   }
 }
     null_reqs_inds.clear();
