@@ -102,7 +102,7 @@ void write_recv(long addr){
 void match_req_null(long addr){
   long id = addr;
   // Type 6 for null req matches
-  spdlog::get("basic_logger")->info("{} {} 6 {}", -1, id, counter);
+  spdlog::get("basic_logger")->info("{} {} 6 {}", 6, id, counter);
   counter++;
   //local_map.erase(addr);    // Local map entry doesn't exist for null waits
 }
@@ -234,7 +234,14 @@ _EXTERN_C_ int PMPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2);
 _EXTERN_C_ int MPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2) { 
     int _wrap_py_return_val = 0;
 {
+  bool nulled = false;
+  if(*arg_0 == MPI_REQUEST_NULL)
+    nulled = true;
   _wrap_py_return_val = PMPI_Test(arg_0, arg_1, arg_2);
+  if(nulled){
+    match_req_null((long) arg_0);
+    return _wrap_py_return_val;
+  }
   if(*arg_1 != 0){
     match_request((long) arg_0);
   }
@@ -300,7 +307,14 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
     int _wrap_py_return_val = 0;
  
 {
+  bool nulled = false;
+  if(*arg_0 == MPI_REQUEST_NULL)
+    nulled = true;
   _wrap_py_return_val = PMPI_Wait(arg_0, arg_1);
+  if(nulled){
+    match_req_null((long)arg_0);
+    return _wrap_py_return_val;
+  }
   long req = (long) arg_0;
   // TODO:: verify whether isend already exists or not
   std::map<long, std::pair<short, long> >::iterator it;
