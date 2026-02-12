@@ -102,7 +102,7 @@ void write_recv(long addr){
 void match_req_null(long addr){
   long id = addr;
   // Type 6 for null req matches
-  spdlog::get("basic_logger")->info("{} {} 6 {}", -1, id, counter);
+  spdlog::get("basic_logger")->info("{} {} 6 {}", 6, id, counter);
   counter++;
   //local_map.erase(addr);    // Local map entry doesn't exist for null waits
 }
@@ -234,13 +234,20 @@ _EXTERN_C_ int PMPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2);
 _EXTERN_C_ int MPI_Test(MPI_Request *arg_0, int *arg_1, MPI_Status *arg_2) { 
     int _wrap_py_return_val = 0;
 {
+  bool nulled = false;
+  if(*arg_0 == MPI_REQUEST_NULL)
+    nulled = true;
   _wrap_py_return_val = PMPI_Test(arg_0, arg_1, arg_2);
+  if(nulled){
+    match_req_null((long) arg_0);
+    return _wrap_py_return_val;
+  }
   if(*arg_1 != 0){
     match_request((long) arg_0);
   }
-  else{
-    write_nonFlagTest((long) arg_0);
-  }
+  //else{     // When flag is 0, trace does not register the vertex; no need to add to pluto
+    //write_nonFlagTest((long) arg_0);
+  //}
 }
     return _wrap_py_return_val;
 }
@@ -300,7 +307,14 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *arg_0, MPI_Status *arg_1) {
     int _wrap_py_return_val = 0;
  
 {
+  bool nulled = false;
+  if(*arg_0 == MPI_REQUEST_NULL)
+    nulled = true;
   _wrap_py_return_val = PMPI_Wait(arg_0, arg_1);
+  if(nulled){
+    match_req_null((long)arg_0);
+    return _wrap_py_return_val;
+  }
   long req = (long) arg_0;
   // TODO:: verify whether isend already exists or not
   std::map<long, std::pair<short, long> >::iterator it;
@@ -380,12 +394,13 @@ _EXTERN_C_ int MPI_Waitsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
 
   _wrap_py_return_val = PMPI_Waitsome(arg_0, arg_1, arg_2, arg_3, arg_4);
   for(int i = 0; i < *arg_2; i++){
-    if (null_reqs_inds.size() && *(arg_3+i) != null_reqs_inds.front())
-      match_request((long) (arg_1+*(arg_3+i)));
-    else{
+    if (null_reqs_inds.size() && arg_3[i] == null_reqs_inds.front())
+    {
       null_reqs_inds.pop_front();
       match_req_null((long)(arg_1+*(arg_3+i)));
     }
+    else
+      match_request((long) (arg_1+arg_3[i]));
   }
 }
     null_reqs_inds.clear();
