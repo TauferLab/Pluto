@@ -57,7 +57,8 @@ static int rank;
 
 void pluto_init() {
   counter = 0;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
   std::string output = "pluto_out" + std::to_string(rank) + ".txt";
 
   try{
@@ -146,8 +147,10 @@ _EXTERN_C_ int MPI_Init(int *arg_0, char ***arg_1) {
     int _wrap_py_return_val = 0;
  
 {
+  std::cout<<"Pluto init called"<<std::endl;
   _wrap_py_return_val = PMPI_Init(arg_0, arg_1);
   pluto_init();
+  
 }
     return _wrap_py_return_val;
 }
@@ -160,6 +163,7 @@ _EXTERN_C_ int MPI_Init_thread(int *arg_0, char ***arg_1, int arg_2, int *arg_3)
 {
   _wrap_py_return_val = PMPI_Init_thread(arg_0, arg_1, arg_2, arg_3);
   pluto_init();
+  
 }
     return _wrap_py_return_val;
 }
@@ -182,8 +186,12 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
     int _wrap_py_return_val = 0;
  
 {
+  
   std::map<long, std::pair<short, long> >::iterator it;
   long req = (long) arg_6;
+
+  _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
+
   it = local_map.find(req);
   if(it != local_map.end()){
     if(it->first == 1){
@@ -201,9 +209,6 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
       std::cerr << "Pluto::MPI_ISEND:: There is a Wait event with the Address of this Send." << std::endl;
       // match_request((long)arg_6);
   }
-
-
-  _wrap_py_return_val = PMPI_Isend(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
 }
     return _wrap_py_return_val;
 }
@@ -215,6 +220,10 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
 {
   std::map<long, std::pair<short, long> >::iterator it;
   long req = (long) arg_6;
+
+  _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
+
+  
   it = local_map.find(req);
   if(it != local_map.end()){
     if(it->first == 1){
@@ -224,7 +233,7 @@ _EXTERN_C_ int MPI_Irecv(void *arg_0, int arg_1, MPI_Datatype arg_2, int arg_3, 
   local_map[req] = std::pair<short, long>(1, counter);
   write_recv(req);
 
-   _wrap_py_return_val = PMPI_Irecv(arg_0, arg_1, arg_2, arg_3, arg_4, arg_5, arg_6);
+   
 }
     return _wrap_py_return_val;
 }
