@@ -194,8 +194,8 @@ _EXTERN_C_ int MPI_Isend(const void *arg_0, int arg_1, MPI_Datatype arg_2, int a
 
   it = local_map.find(req);
   if(it != local_map.end()){
-    if(it->first == 1){
-      std::cerr << "Reusing receive request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
+    if(it->first == 0){
+      std::cerr << "Reusing send request objects is not supported in ANACIN-X, output is not guaranteed to be useful." << std::endl;
     }
   }
   
@@ -300,12 +300,22 @@ _EXTERN_C_ int MPI_Testsome(int arg_0, MPI_Request *arg_1, int *arg_2, int *arg_
     int _wrap_py_return_val = 0;
  
 {
+  for(int i = 0; i<arg_0; i++){   // Checking if some requests already null; won't have matching irecvs, need to be registered as null waits
+    if(arg_1[i] == MPI_REQUEST_NULL)
+      null_reqs_inds.push_back(i);
+  }
   _wrap_py_return_val = PMPI_Testsome(arg_0, arg_1, arg_2, arg_3, arg_4);
-  if(*arg_2 != 0){
     for(int i = 0; i < *arg_2; i++){
-      match_request((long) (arg_1+*(arg_3+i)));
+    if (null_reqs_inds.size() && arg_3[i] == null_reqs_inds.front())
+    {
+      null_reqs_inds.pop_front();
+      match_req_null((long)(arg_1+*(arg_3+i)));
     }
+    else
+      match_request((long) (arg_1+arg_3[i]));
+    
   } 
+  null_reqs_inds.clear();
 }
     return _wrap_py_return_val;
 }
