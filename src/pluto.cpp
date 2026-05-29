@@ -108,6 +108,12 @@ void match_req_null(long addr){
   //local_map.erase(addr);    // Local map entry doesn't exist for null waits
 }
 
+void write_cancel(long addr){
+  long id = addr;
+  spdlog::get("basic_logger")->info("{} {} 7 {}", 7, id, counter);
+  counter++;
+}
+
 void match_request(long addr){
   long id= addr;
   // long id=counter;
@@ -775,17 +781,18 @@ _EXTERN_C_ int MPI_Barrier(MPI_Comm arg_0) {
 //    return _wrap_py_return_val;
 //}
 //
-///* ================== C Wrappers for MPI_Cancel ================== */
-//_EXTERN_C_ int PMPI_Cancel(MPI_Request *arg_0);
-//_EXTERN_C_ int MPI_Cancel(MPI_Request *arg_0) { 
-//    int _wrap_py_return_val = 0;
-// 
-//{
-//  _wrap_py_return_val = PMPI_Cancel(arg_0);
-//}
-//    return _wrap_py_return_val;
-//}
-//
+/* ================== C Wrappers for MPI_Cancel ================== */
+_EXTERN_C_ int PMPI_Cancel(MPI_Request *arg_0);
+_EXTERN_C_ int MPI_Cancel(MPI_Request *arg_0) {
+    int _wrap_py_return_val = 0;
+
+{
+  _wrap_py_return_val = PMPI_Cancel(arg_0);
+  write_cancel((long) arg_0);
+}
+    return _wrap_py_return_val;
+}
+
 ///* ================== C Wrappers for MPI_Cart_coords ================== */
 //_EXTERN_C_ int PMPI_Cart_coords(MPI_Comm arg_0, int arg_1, int arg_2, int *arg_3);
 //_EXTERN_C_ int MPI_Cart_coords(MPI_Comm arg_0, int arg_1, int arg_2, int *arg_3) { 
